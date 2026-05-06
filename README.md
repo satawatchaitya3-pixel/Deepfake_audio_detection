@@ -12,22 +12,15 @@ keywords: {Deepfakes;Deep learning;Speech synthesis;Training data;Feature extrac
 URL: https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9996362&isnumber=9668973
 
 
-## Contributors to this project code
-- Noor Chauhan
-- [Abhishek Khadgi](https://github.com/abhis-hek)
-- Omkar Sapkal
-- Himanshi Shinde
-- Furqan Ali
 
 ## Table of Contents
 1. [Introduction](#aiamplify-deepfake-audio-detection-project)
 2. [Overview](#overview)
-3. [Contributors](#contributors)
-4. [Installation](#installation)
-5. [How to Use](#how-to-use)
+3. [Installation](#installation)
+4. [How to Use](#how-to-use)
    - [Training the Model](#training-the-model)
    - [Analyzing Audio](#analyzing-audio)
-6. [License](#license)
+5. [License](#license)
 
 ## Installation
 To initialize the project, follow these steps:
