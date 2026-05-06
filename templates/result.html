@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoiceShield — Analysis Result</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #020810;
+      --surface: #060f1e;
+      --border: #0d2137;
+      --neon: #00f5d4;
+      --neon-dim: #00f5d422;
+      --neon-glow: 0 0 8px #00f5d4, 0 0 28px #00f5d466;
+      --red: #ff2d55;
+      --red-dim: #ff2d5515;
+      --red-glow: 0 0 8px #ff2d55, 0 0 28px #ff2d5566;
+      --yellow: #ffd60a;
+      --text: #c8e6f5;
+      --text-dim: #4a7a96;
+      --grid: #0d213755;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.7;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .corner {
+      position: fixed;
+      width: 80px;
+      height: 80px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .corner::before, .corner::after {
+      content: '';
+      position: absolute;
+      background: var(--neon);
+      box-shadow: var(--neon-glow);
+    }
+    .corner::before { width: 2px; height: 100%; }
+    .corner::after { width: 100%; height: 2px; }
+    .corner-tl { top: 16px; left: 16px; }
+    .corner-tr { top: 16px; right: 16px; transform: scaleX(-1); }
+    .corner-bl { bottom: 16px; left: 16px; transform: scaleY(-1); }
+    .corner-br { bottom: 16px; right: 16px; transform: scale(-1); }
+
+    .scan-line {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--neon), transparent);
+      animation: scanDown 4s linear infinite;
+      pointer-events: none;
+      z-index: 5;
+      opacity: 0.5;
+    }
+    @keyframes scanDown {
+      0% { top: 0; opacity: 0; }
+      5% { opacity: 0.5; }
+      95% { opacity: 0.5; }
+      100% { top: 100vh; opacity: 0; }
+    }
+
+    header {
+      position: relative;
+      z-index: 2;
+      padding: 32px 48px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-icon { width: 44px; height: 44px; }
+    .logo-icon svg { width: 100%; height: 100%; filter: drop-shadow(0 0 6px var(--neon)); }
+    .logo-text { font-family: 'Orbitron', monospace; font-weight: 900; font-size: 22px; letter-spacing: 0.12em; color: var(--neon); text-shadow: var(--neon-glow); }
+    .logo-sub { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.3em; text-transform: uppercase; margin-top: 2px; }
+
+    .status-bar { display: flex; gap: 24px; align-items: center; }
+    .status-item { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text-dim); letter-spacing: 0.15em; display: flex; align-items: center; gap: 6px; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--neon); box-shadow: 0 0 6px var(--neon); animation: blink 2s ease-in-out infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+    main {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 140px);
+      padding: 40px 24px;
+    }
+
+    /* ---- Result section ---- */
+    .result-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.4em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 32px;
+      opacity: 0;
+      animation: fadeIn 0.4s ease forwards 0.2s;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Verdict ring */
+    .verdict-ring {
+      width: 180px;
+      height: 180px;
+      position: relative;
+      margin-bottom: 36px;
+      opacity: 0;
+      animation: fadeIn 0.6s ease forwards 0.4s;
+    }
+
+    .verdict-ring svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .ring-bg {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 6;
+    }
+
+    .ring-fill {
+      fill: none;
+      stroke-width: 6;
+      stroke-linecap: round;
+      stroke-dasharray: 502;
+      stroke-dashoffset: 502;
+      animation: fillRing 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards 0.8s;
+    }
+
+    @keyframes fillRing {
+      to { stroke-dashoffset: 0; }
+    }
+
+    .verdict-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .verdict-icon {
+      font-size: 40px;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .verdict-pct {
+      font-family: 'Orbitron', monospace;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.2em;
+    }
+
+    /* Main result card */
+    .result-card {
+      width: 100%;
+      max-width: 600px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      position: relative;
+      padding: 40px;
+      margin-bottom: 28px;
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards 0.6s;
+    }
+
+    .result-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+
+    .result-card.genuine::before { background: linear-gradient(90deg, transparent, var(--neon), transparent); }
+    .result-card.deepfake::before { background: linear-gradient(90deg, transparent, var(--red), transparent); }
+
+    .card-corner { position: absolute; width: 16px; height: 16px; }
+    .card-corner::before, .card-corner::after { content: ''; position: absolute; }
+    .card-corner::before { width: 2px; height: 100%; }
+    .card-corner::after { width: 100%; height: 2px; }
+
+    .result-card.genuine .card-corner::before,
+    .result-card.genuine .card-corner::after {
+      background: var(--neon);
+      box-shadow: var(--neon-glow);
+    }
+
+    .result-card.deepfake .card-corner::before,
+    .result-card.deepfake .card-corner::after {
+      background: var(--red);
+      box-shadow: var(--red-glow);
+    }
+
+    .card-corner.tl { top: -1px; left: -1px; }
+    .card-corner.tr { top: -1px; right: -1px; transform: scaleX(-1); }
+    .card-corner.bl { bottom: -1px; left: -1px; transform: scaleY(-1); }
+    .card-corner.br { bottom: -1px; right: -1px; transform: scale(-1); }
+
+    .result-header {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .result-header::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
+      border: 1px solid;
+    }
+
+    .result-card.genuine .verdict-banner {
+      border-color: var(--neon);
+      background: var(--neon-dim);
+    }
+
+    .result-card.deepfake .verdict-banner {
+      border-color: var(--red);
+      background: var(--red-dim);
+    }
+
+    .verdict-symbol {
+      font-size: 32px;
+      flex-shrink: 0;
+    }
+
+    .verdict-title {
+      font-family: 'Orbitron', monospace;
+      font-weight: 900;
+      font-size: 22px;
+      letter-spacing: 0.1em;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .result-card.genuine .verdict-title { color: var(--neon); text-shadow: var(--neon-glow); }
+    .result-card.deepfake .verdict-title { color: var(--red); text-shadow: var(--red-glow); }
+
+    .verdict-sub {
+      font-size: 13px;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+      font-weight: 300;
+    }
+
+    /* Analysis log */
+    .analysis-log {
+      background: #030a14;
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 2;
+      letter-spacing: 0.05em;
+    }
+
+    .log-line { display: flex; gap: 12px; }
+    .log-line .log-key { color: var(--text-dim); }
+    .log-line .log-val { color: var(--text); }
+    .log-line .log-val.ok { color: var(--neon); }
+    .log-line .log-val.warn { color: var(--red); }
+
+    /* Glitch effect for deepfake */
+    .glitch {
+      position: relative;
+    }
+    .glitch::before, .glitch::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    .glitch::before {
+      color: #ff2d55;
+      animation: glitch1 3s infinite;
+      clip-path: polygon(0 30%, 100% 30%, 100% 50%, 0 50%);
+    }
+    .glitch::after {
+      color: #00f5d4;
+      animation: glitch2 3s infinite;
+      clip-path: polygon(0 60%, 100% 60%, 100% 80%, 0 80%);
+    }
+    @keyframes glitch1 {
+      0%, 90%, 100% { transform: none; opacity: 0; }
+      92% { transform: translate(-3px, 1px); opacity: 0.8; }
+      94% { transform: translate(3px, -1px); opacity: 0.8; }
+      96% { transform: translate(-3px, 1px); opacity: 0; }
+    }
+    @keyframes glitch2 {
+      0%, 88%, 100% { transform: none; opacity: 0; }
+      90% { transform: translate(3px, -2px); opacity: 0.7; }
+      93% { transform: translate(-3px, 2px); opacity: 0.7; }
+      95% { transform: translate(3px, 0); opacity: 0; }
+    }
+
+    /* Pulse for genuine */
+    .pulse-ring {
+      position: absolute;
+      inset: -20px;
+      border-radius: 50%;
+      border: 1px solid var(--neon);
+      opacity: 0;
+      animation: pulse 3s ease-out infinite;
+    }
+    .pulse-ring:nth-child(2) { animation-delay: 1s; }
+    .pulse-ring:nth-child(3) { animation-delay: 2s; }
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.5; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+
+    /* Back button */
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 32px;
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--text-dim);
+      font-family: 'Orbitron', monospace;
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards 0.9s;
+    }
+
+    .btn-back:hover {
+      border-color: var(--neon);
+      color: var(--neon);
+      box-shadow: var(--neon-glow);
+    }
+
+    footer {
+      position: relative;
+      z-index: 2;
+      border-top: 1px solid var(--border);
+      padding: 16px 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer-text { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.2em; }
+  </style>
+</head>
+<body>
+  <div class="scan-line"></div>
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 44 44" fill="none">
+          <path d="M22 4L38 12V24C38 32.837 31.06 40.5 22 42C12.94 40.5 6 32.837 6 24V12L22 4Z" stroke="#00f5d4" stroke-width="1.5" fill="none"/>
+          <path d="M14 22C14 22 17 18 22 18C27 18 30 22 30 22C30 22 27 26 22 26C17 26 14 22 14 22Z" stroke="#00f5d4" stroke-width="1.2" fill="none"/>
+          <circle cx="22" cy="22" r="2.5" fill="#00f5d4"/>
+          <line x1="22" y1="12" x2="22" y2="15" stroke="#00f5d4" stroke-width="1"/>
+          <line x1="22" y1="29" x2="22" y2="32" stroke="#00f5d4" stroke-width="1"/>
+          <line x1="12" y1="22" x2="15" y2="22" stroke="#00f5d4" stroke-width="1"/>
+          <line x1="29" y1="22" x2="32" y2="22" stroke="#00f5d4" stroke-width="1"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">VoiceShield</div>
+        <div class="logo-sub">Deepfake Detection System v2.4</div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="status-item"><span class="status-dot"></span>ANALYSIS COMPLETE</div>
+      <div class="status-item">// REPORT GENERATED</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="result-label">[ Forensic Analysis Report ]</div>
+
+    <!-- Determine genuine or deepfake from result string -->
+    {% set is_genuine = 'genuine' in result.lower() %}
+
+    <!-- Verdict ring -->
+    <div class="verdict-ring">
+      {% if is_genuine %}
+        <div class="pulse-ring"></div>
+        <div class="pulse-ring"></div>
+        <div class="pulse-ring"></div>
+      {% endif %}
+      <svg viewBox="0 0 180 180">
+        <circle class="ring-bg" cx="90" cy="90" r="80"/>
+        <circle class="ring-fill" cx="90" cy="90" r="80"
+          stroke="{{ '#00f5d4' if is_genuine else '#ff2d55' }}"/>
+      </svg>
+      <div class="verdict-center">
+        <div class="verdict-icon">{{ '🛡' if is_genuine else '⚠' }}</div>
+        <div class="verdict-pct" style="color: {{ '#00f5d4' if is_genuine else '#ff2d55' }}">
+          {{ 'VERIFIED' if is_genuine else 'THREAT' }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Result card -->
+    <div class="result-card {{ 'genuine' if is_genuine else 'deepfake' }}">
+      <div class="card-corner tl"></div>
+      <div class="card-corner tr"></div>
+      <div class="card-corner bl"></div>
+      <div class="card-corner br"></div>
+
+      <div class="result-header">
+        <span>▶</span> CLASSIFICATION_OUTPUT
+      </div>
+
+      <div class="verdict-banner">
+        <div class="verdict-symbol">{{ '✓' if is_genuine else '✗' }}</div>
+        <div>
+          {% if is_genuine %}
+            <div class="verdict-title">GENUINE AUDIO</div>
+            <div class="verdict-sub">No synthetic manipulation detected — audio classified as authentic</div>
+          {% else %}
+            <div class="verdict-title glitch" data-text="DEEPFAKE DETECTED">DEEPFAKE DETECTED</div>
+            <div class="verdict-sub">AI-generated voice patterns identified — treat as potential threat</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Analysis log -->
+      <div class="analysis-log">
+        <div class="log-line">
+          <span class="log-key">FEATURE_EXTRACTOR &nbsp;►</span>
+          <span class="log-val ok">MFCC (n=13) COMPLETE</span>
+        </div>
+        <div class="log-line">
+          <span class="log-key">NORMALIZATION &nbsp;&nbsp;&nbsp;►</span>
+          <span class="log-val ok">StandardScaler APPLIED</span>
+        </div>
+        <div class="log-line">
+          <span class="log-key">CLASSIFIER &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;►</span>
+          <span class="log-val ok">SVM (KERNEL=LINEAR) LOADED</span>
+        </div>
+        <div class="log-line">
+          <span class="log-key">PREDICTION &nbsp;&nbsp;&nbsp;&nbsp;►</span>
+          <span class="log-val {{ 'ok' if is_genuine else 'warn' }}">
+            CLASS_{{ '0 — GENUINE' if is_genuine else '1 — DEEPFAKE' }}
+          </span>
+        </div>
+        <div class="log-line">
+          <span class="log-key">STATUS &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;►</span>
+          <span class="log-val ok">ANALYSIS_COMPLETE</span>
+        </div>
+      </div>
+
+      <div style="font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-dim); line-height:1.8; letter-spacing:0.06em;">
+        <span style="color:{{ '#00f5d4' if is_genuine else '#ff2d55' }}">►</span>
+        {{ result }}
+      </div>
+    </div>
+
+    <a href="/" class="btn-back">← &nbsp; ANALYZE ANOTHER FILE</a>
+  </main>
+
+  <footer>
+    <div class="footer-text">VOICESHIELD FORENSICS &nbsp;// &nbsp;REPORT ID: VS-{{ range(10000, 99999) | random }}</div>
+    <div class="footer-text">CLASSIFICATION MODEL: SVM v2.4 &nbsp;|&nbsp; ENGINE: MFCC-13</div>
+  </footer>
+</body>
+</html>

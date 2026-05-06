@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoiceShield — Deepfake Voice Detector</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #020810;
+      --surface: #060f1e;
+      --border: #0d2137;
+      --neon: #00f5d4;
+      --neon-dim: #00f5d433;
+      --neon-glow: 0 0 8px #00f5d4, 0 0 24px #00f5d455;
+      --red: #ff2d55;
+      --red-dim: #ff2d5522;
+      --yellow: #ffd60a;
+      --text: #c8e6f5;
+      --text-dim: #4a7a96;
+      --grid: #0d213755;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Animated grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: gridPulse 8s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes gridPulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    /* Corner decorations */
+    .corner {
+      position: fixed;
+      width: 80px;
+      height: 80px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .corner::before, .corner::after {
+      content: '';
+      position: absolute;
+      background: var(--neon);
+      box-shadow: var(--neon-glow);
+    }
+    .corner::before { width: 2px; height: 100%; }
+    .corner::after { width: 100%; height: 2px; }
+    .corner-tl { top: 16px; left: 16px; }
+    .corner-tr { top: 16px; right: 16px; transform: scaleX(-1); }
+    .corner-bl { bottom: 16px; left: 16px; transform: scaleY(-1); }
+    .corner-br { bottom: 16px; right: 16px; transform: scale(-1); }
+
+    /* Scanning line */
+    .scan-line {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--neon), transparent);
+      animation: scanDown 6s linear infinite;
+      pointer-events: none;
+      z-index: 5;
+      opacity: 0.6;
+    }
+    @keyframes scanDown {
+      0% { top: 0; opacity: 0; }
+      5% { opacity: 0.6; }
+      95% { opacity: 0.6; }
+      100% { top: 100vh; opacity: 0; }
+    }
+
+    /* Header */
+    header {
+      position: relative;
+      z-index: 2;
+      padding: 32px 48px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      position: relative;
+    }
+
+    .logo-icon svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 6px var(--neon));
+    }
+
+    .logo-text {
+      font-family: 'Orbitron', monospace;
+      font-weight: 900;
+      font-size: 22px;
+      letter-spacing: 0.12em;
+      color: var(--neon);
+      text-shadow: var(--neon-glow);
+    }
+
+    .logo-sub {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .status-bar {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .status-item {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.15em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--neon);
+      box-shadow: 0 0 6px var(--neon);
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    /* Main layout */
+    main {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 120px);
+      padding: 40px 24px;
+    }
+
+    .hero-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.4em;
+      color: var(--neon);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards 0.2s;
+    }
+
+    .hero-title {
+      font-family: 'Orbitron', monospace;
+      font-weight: 900;
+      font-size: clamp(28px, 5vw, 52px);
+      text-align: center;
+      line-height: 1.1;
+      color: #fff;
+      margin-bottom: 12px;
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards 0.35s;
+    }
+
+    .hero-title span {
+      color: var(--neon);
+      text-shadow: var(--neon-glow);
+    }
+
+    .hero-desc {
+      font-size: 16px;
+      color: var(--text-dim);
+      text-align: center;
+      max-width: 480px;
+      line-height: 1.6;
+      margin-bottom: 48px;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards 0.5s;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Upload card */
+    .upload-card {
+      width: 100%;
+      max-width: 560px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      position: relative;
+      padding: 40px;
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards 0.65s;
+    }
+
+    .upload-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--neon), transparent);
+    }
+
+    /* Corner brackets on card */
+    .card-corner {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+    }
+    .card-corner::before, .card-corner::after {
+      content: '';
+      position: absolute;
+      background: var(--neon);
+      box-shadow: var(--neon-glow);
+    }
+    .card-corner::before { width: 2px; height: 100%; }
+    .card-corner::after { width: 100%; height: 2px; }
+    .card-corner.tl { top: -1px; left: -1px; }
+    .card-corner.tr { top: -1px; right: -1px; transform: scaleX(-1); }
+    .card-corner.bl { bottom: -1px; left: -1px; transform: scaleY(-1); }
+    .card-corner.br { bottom: -1px; right: -1px; transform: scale(-1); }
+
+    .card-header {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-header::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 1.5px dashed var(--border);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 28px;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--neon);
+      background: var(--neon-dim);
+    }
+
+    .drop-zone:hover .drop-icon, .drop-zone.dragover .drop-icon {
+      filter: drop-shadow(0 0 10px var(--neon));
+      transform: scale(1.1);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 16px;
+      transition: all 0.3s ease;
+    }
+
+    .drop-icon svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 6px;
+      letter-spacing: 0.05em;
+    }
+
+    .drop-sub {
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+    }
+
+    .file-name-display {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      color: var(--neon);
+      margin-top: 12px;
+      min-height: 18px;
+      letter-spacing: 0.05em;
+      text-shadow: 0 0 8px var(--neon);
+    }
+
+    /* Waveform animation placeholder */
+    .waveform {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      height: 32px;
+      margin-bottom: 28px;
+    }
+
+    .wave-bar {
+      width: 3px;
+      background: var(--neon);
+      border-radius: 2px;
+      opacity: 0.4;
+      animation: wave 1.4s ease-in-out infinite;
+    }
+
+    .wave-bar:nth-child(1)  { height: 8px;  animation-delay: 0s; }
+    .wave-bar:nth-child(2)  { height: 16px; animation-delay: 0.1s; }
+    .wave-bar:nth-child(3)  { height: 24px; animation-delay: 0.2s; }
+    .wave-bar:nth-child(4)  { height: 32px; animation-delay: 0.3s; }
+    .wave-bar:nth-child(5)  { height: 20px; animation-delay: 0.4s; }
+    .wave-bar:nth-child(6)  { height: 28px; animation-delay: 0.5s; }
+    .wave-bar:nth-child(7)  { height: 32px; animation-delay: 0.35s; }
+    .wave-bar:nth-child(8)  { height: 18px; animation-delay: 0.25s; }
+    .wave-bar:nth-child(9)  { height: 26px; animation-delay: 0.15s; }
+    .wave-bar:nth-child(10) { height: 12px; animation-delay: 0.05s; }
+    .wave-bar:nth-child(11) { height: 22px; animation-delay: 0.2s; }
+    .wave-bar:nth-child(12) { height: 30px; animation-delay: 0.3s; }
+    .wave-bar:nth-child(13) { height: 16px; animation-delay: 0.4s; }
+    .wave-bar:nth-child(14) { height: 8px;  animation-delay: 0.5s; }
+    .wave-bar.active { opacity: 1; box-shadow: 0 0 6px var(--neon); }
+
+    @keyframes wave {
+      0%, 100% { transform: scaleY(0.5); opacity: 0.3; }
+      50% { transform: scaleY(1); opacity: 0.8; }
+    }
+
+    /* Submit button */
+    .btn-analyze {
+      width: 100%;
+      padding: 16px;
+      background: transparent;
+      border: 1.5px solid var(--neon);
+      color: var(--neon);
+      font-family: 'Orbitron', monospace;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .btn-analyze::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, var(--neon-dim), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .btn-analyze:hover {
+      background: var(--neon-dim);
+      box-shadow: var(--neon-glow), inset 0 0 20px var(--neon-dim);
+      color: #fff;
+    }
+
+    .btn-analyze:hover::before { left: 100%; }
+
+    .btn-analyze:active { transform: scale(0.99); }
+
+    /* Alert/flash messages */
+    .alert {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      padding: 12px 16px;
+      border: 1px solid var(--red);
+      background: var(--red-dim);
+      color: var(--red);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Footer stats */
+    .stats-row {
+      display: flex;
+      gap: 48px;
+      margin-top: 48px;
+      opacity: 0;
+      animation: fadeUp 0.6s ease forwards 0.85s;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-family: 'Orbitron', monospace;
+      font-weight: 700;
+      font-size: 26px;
+      color: var(--neon);
+      text-shadow: var(--neon-glow);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+
+    .stat-divider {
+      width: 1px;
+      background: var(--border);
+      align-self: stretch;
+    }
+
+    /* Footer */
+    footer {
+      position: relative;
+      z-index: 2;
+      border-top: 1px solid var(--border);
+      padding: 16px 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-text {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.2em;
+    }
+  </style>
+</head>
+<body>
+  <!-- Scanning line effect -->
+  <div class="scan-line"></div>
+
+  <!-- Corner decorators -->
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22 4L38 12V24C38 32.837 31.06 40.5 22 42C12.94 40.5 6 32.837 6 24V12L22 4Z" stroke="#00f5d4" stroke-width="1.5" fill="none"/>
+          <path d="M14 22C14 22 17 18 22 18C27 18 30 22 30 22C30 22 27 26 22 26C17 26 14 22 14 22Z" stroke="#00f5d4" stroke-width="1.2" fill="none"/>
+          <circle cx="22" cy="22" r="2.5" fill="#00f5d4"/>
+          <line x1="22" y1="12" x2="22" y2="15" stroke="#00f5d4" stroke-width="1"/>
+          <line x1="22" y1="29" x2="22" y2="32" stroke="#00f5d4" stroke-width="1"/>
+          <line x1="12" y1="22" x2="15" y2="22" stroke="#00f5d4" stroke-width="1"/>
+          <line x1="29" y1="22" x2="32" y2="22" stroke="#00f5d4" stroke-width="1"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">VoiceShield</div>
+        <div class="logo-sub">Deepfake Detection System v2.4</div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-dot"></span>
+        SVM MODEL ACTIVE
+      </div>
+      <div class="status-item">// MFCC-13 ENGINE</div>
+      <div class="status-item">THREAT LEVEL: NOMINAL</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero-label">[ Audio Forensics Module ]</div>
+    <h1 class="hero-title">Detect <span>AI-Generated</span><br/>Voice Threats</h1>
+    <p class="hero-desc">
+      Upload a WAV audio file to analyze its authenticity using MFCC feature extraction and SVM classification.
+    </p>
+
+    <div class="upload-card">
+      <div class="card-corner tl"></div>
+      <div class="card-corner tr"></div>
+      <div class="card-corner bl"></div>
+      <div class="card-corner br"></div>
+
+      <div class="card-header">
+        <span>▶</span> AUDIO_INPUT_MODULE
+      </div>
+
+      {% if message %}
+      <div class="alert">
+        <span>⚠</span> {{ message }}
+      </div>
+      {% endif %}
+
+      <form method="POST" enctype="multipart/form-data" id="uploadForm">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" name="audio_file" id="audioFile" accept=".wav" />
+          <div class="drop-icon">
+            <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="6" y="14" width="40" height="30" rx="2" stroke="#00f5d4" stroke-width="1.5"/>
+              <path d="M18 8H34L40 14H12L18 8Z" stroke="#00f5d4" stroke-width="1.5"/>
+              <path d="M26 22V36M26 22L21 27M26 22L31 27" stroke="#00f5d4" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="16" y1="40" x2="36" y2="40" stroke="#00f5d4" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+            </svg>
+          </div>
+          <div class="drop-label">DROP WAV FILE OR CLICK TO BROWSE</div>
+          <div class="drop-sub">Accepted format: .WAV &nbsp;|&nbsp; Max analysis time: ~2s</div>
+          <div class="file-name-display" id="fileNameDisplay"></div>
+        </div>
+
+        <div class="waveform" id="waveform">
+          <div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div><div class="wave-bar"></div>
+          <div class="wave-bar"></div><div class="wave-bar"></div>
+        </div>
+
+        <button type="submit" class="btn-analyze" id="analyzeBtn">
+          ▶ &nbsp; RUN FORENSIC ANALYSIS
+        </button>
+      </form>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-value">13</div>
+        <div class="stat-label">MFCC Coefficients</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <div class="stat-value">SVM</div>
+        <div class="stat-label">Classifier Engine</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <div class="stat-value">&lt;2s</div>
+        <div class="stat-label">Analysis Time</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-text">VOICESHIELD FORENSICS &nbsp;// &nbsp;ANTHROPIC NEURAL DEFENSE</div>
+    <div class="footer-text">SYSTEM STATUS: OPERATIONAL &nbsp;|&nbsp; MFCC ENGINE LOADED</div>
+  </footer>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const audioFile = document.getElementById('audioFile');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const waveBars = document.querySelectorAll('.wave-bar');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+
+    audioFile.addEventListener('change', () => {
+      if (audioFile.files[0]) {
+        fileNameDisplay.textContent = '▶ ' + audioFile.files[0].name;
+        waveBars.forEach(b => b.classList.add('active'));
+      }
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files[0]) {
+        audioFile.files = files;
+        fileNameDisplay.textContent = '▶ ' + files[0].name;
+        waveBars.forEach(b => b.classList.add('active'));
+      }
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', () => {
+      analyzeBtn.textContent = '⟳  SCANNING...';
+      analyzeBtn.disabled = true;
+    });
+  </script>
+</body>
+</html>
