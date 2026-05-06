@@ -1,7 +1,13 @@
 # Deepfake Audio Detection Project
 
 ## Overview
-This project was developed during the AIAmplify Hackathon, a 24-hour hackathon focused on using AI to address real-world challenges. The goal of this project is to detect deepfake audio using machine learning techniques. The project uses MFCC (Mel-frequency cepstral coefficients) features extracted from audio files and a Support Vector Machine (SVM) classifier to differentiate between genuine and deepfake audio.
+Deepfake Voice Detection System is a machine learning–based application designed to identify whether an audio sample is genuine or artificially generated (deepfake). With the rapid advancement of AI-driven voice synthesis and cloning technologies, detecting synthetic audio has become a critical challenge in cybersecurity and digital forensics.
+
+This project addresses the problem by analyzing audio signals using Mel-Frequency Cepstral Coefficients (MFCC) and classifying them using a Support Vector Machine (SVM) model. The system processes audio input, extracts meaningful features, and predicts whether the voice is real or fake.
+
+A Flask-based web interface is also integrated, allowing users to upload audio files and receive instant detection results. The project demonstrates a practical implementation of machine learning techniques for combating deepfake audio threats.
+
+Overall, this system provides a simple, efficient, and scalable solution for enhancing audio authenticity and security in digital communication.
 
 ## Citation
 Satawat, C. (2026). Deepfake Voice Detection System using Machine Learning.
